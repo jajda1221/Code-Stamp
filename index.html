@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>CodeLog Timer</title>
+  <style>
+    :root { --gap: 12px; --radius: 14px; --border: 1px solid rgba(0,0,0,.12); }
+    body {
+      margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: #f6f7fb; color: #111;
+    }
+    header {
+      padding: 18px 16px; background: #fff; border-bottom: var(--border);
+      position: sticky; top: 0; z-index: 5;
+    }
+    h1 { margin: 0 0 10px; font-size: 20px; }
+    .row { display: flex; gap: var(--gap); flex-wrap: wrap; align-items: end; }
+    label { display: grid; gap: 6px; font-size: 13px; color: #333; }
+    input, select, button {
+      font: inherit; border-radius: 12px; border: var(--border); padding: 10px 12px;
+      background: #fff;
+    }
+    input { width: 160px; }
+    select { min-width: 230px; }
+    .hint { font-size: 12px; color: #555; margin-top: 8px; }
+    main { padding: 16px; max-width: 1100px; margin: 0 auto; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: var(--gap);
+      margin-top: 14px;
+    }
+    .bigbtn {
+      padding: 18px 16px;
+      font-size: 18px;
+      font-weight: 700;
+      border-radius: 18px;
+      border: var(--border);
+      background: #ffffff;
+      text-align: left;
+      cursor: pointer;
+      min-height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .bigbtn:active { transform: translateY(1px); }
+    .count {
+      font-size: 13px; font-weight: 700;
+      padding: 6px 10px; border-radius: 999px;
+      border: var(--border);
+      background: #f1f3f9;
+      color: #222;
+    }
+    .panels {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: var(--gap);
+      margin-top: 16px;
+    }
+    @media (max-width: 900px) { .panels { grid-template-columns: 1fr; } }
+    .card {
+      background: #fff; border: var(--border); border-radius: var(--radius);
+      padding: 14px;
+    }
+    .card h2 { margin: 0 0 10px; font-size: 16px; }
+    .actions { display: flex; gap: var(--gap); flex-wrap: wrap; margin-top: 10px; }
+    .actionbtn {
+      cursor: pointer;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: var(--border);
+      background: #fff;
+      font-weight: 700;
+    }
+    .actionbtn.danger { background: #fff5f5; }
+    textarea {
+      width: 100%; min-height: 320px; resize: vertical;
+      border-radius: 12px; border: var(--border);
+      padding: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+    }
+    .status { margin-top: 10px; font-size: 12px; color: #444; }
+    .pill {
+      display: inline-block; padding: 4px 10px; border-radius: 999px; border: var(--border);
+      background: #f6f7fb; font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>CodeLog Timer</h1>
+    <div class="row">
+      <label>
+        ZIP Code (US)
+        <input id="zip" inputmode="numeric" autocomplete="postal-code" maxlength="10" placeholder="e.g. 37211" />
+      </label>
+
+      <label>
+        Timezone (override if needed)
+        <select id="tz">
+          <option value="">Use device timezone</option>
+          <option value="America/New_York">America/New_York (Eastern)</option>
+          <option value="America/Chicago">America/Chicago (Central)</option>
+          <option value="America/Denver">America/Denver (Mountain)</option>
+          <option value="America/Los_Angeles">America/Los_Angeles (Pacific)</option>
+          <option value="America/Anchorage">America/Anchorage (Alaska)</option>
+          <option value="Pacific/Honolulu">Pacific/Honolulu (Hawaii)</option>
+        </select>
+      </label>
+
+      <div style="flex:1"></div>
+
+      <div class="pill" id="clock">--:--:--</div>
+    </div>
+
+    <div class="hint" id="zipHint">
+      Enter a ZIP to auto-pick a best-guess timezone (you can still override it).
+    </div>
+  </header>
+
+  <main>
+    <div class="grid" id="buttons"></div>
+
+    <div class="panels">
+      <div class="card">
+        <h2>Event Log</h2>
+        <textarea id="log" readonly></textarea>
+
+        <div class="actions">
+          <button class="actionbtn" id="copy">Copy Log</button>
+          <button class="actionbtn" id="download">Download .txt</button>
+          <button class="actionbtn" id="undo">Undo Last</button>
+          <button class="actionbtn danger" id="clear">Clear All</button>
+        </div>
+
+        <div class="status" id="status"></div>
+      </div>
+
+      <div class="card">
+        <h2>Notes (optional)</h2>
+        <textarea id="notes" placeholder="Any extra notes…"></textarea>
+        <div class="status">
+          Tip: If your state has multiple timezones (TN/FL/IN/KY/MI, etc.), use the dropdown to ensure accuracy.
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // ======= CONFIG: YOUR BUTTONS =======
+    const ITEMS = [
+      "Rhythm check",
+      "CPR Started",
+      "Defibrillation",
+      "IV/IO Access",
+      "Epinephrine",
+      "Airway Established",
+      "Narcan",
+      "Amiodarone",
+      "Lidocaine",
+      "Blood Glucose",
+      "Warming",
+      "Sodium Bicarbonate",
+      "Fluids/Pressure Bag"
+    ];
+
+    // ======= TIMEZONE HELPERS =======
+    // Best-effort state->timezone mapping (some states span multiple zones; user can override)
+    const STATE_TO_TZ = {
+      AL:"America/Chicago", AK:"America/Anchorage", AZ:"America/Denver", AR:"America/Chicago",
+      CA:"America/Los_Angeles", CO:"America/Denver", CT:"America/New_York", DE:"America/New_York",
+      DC:"America/New_York", FL:"America/New_York", GA:"America/New_York", HI:"Pacific/Honolulu",
+      ID:"America/Denver", IL:"America/Chicago", IN:"America/New_York", IA:"America/Chicago",
+      KS:"America/Chicago", KY:"America/New_York", LA:"America/Chicago", ME:"America/New_York",
+      MD:"America/New_York", MA:"America/New_York", MI:"America/New_York", MN:"America/Chicago",
+      MS:"America/Chicago", MO:"America/Chicago", MT:"America/Denver", NE:"America/Chicago",
+      NV:"America/Los_Angeles", NH:"America/New_York", NJ:"America/New_York", NM:"America/Denver",
+      NY:"America/New_York", NC:"America/New_York", ND:"America/Chicago", OH:"America/New_York",
+      OK:"America/Chicago", OR:"America/Los_Angeles", PA:"America/New_York", RI:"America/New_York",
+      SC:"America/New_York", SD:"America/Chicago", TN:"America/Chicago", TX:"America/Chicago",
+      UT:"America/Denver", VT:"America/New_York", VA:"America/New_York", WA:"America/Los_Angeles",
+      WV:"America/New_York", WI:"America/Chicago", WY:"America/Denver"
+    };
+
+    function sanitizeZip(z) {
+      return (z || "").trim().replace(/[^\d]/g, "").slice(0, 5);
+    }
+
+    async function lookupZip(zip) {
+      // Zippopotam.us: https://api.zippopotam.us/us/90210
+      const url = `https://api.zippopotam.us/us/${zip}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("ZIP not found");
+      return res.json();
+    }
+
+    function formatNow(timeZone) {
+      const opts = { hour12:false, hour:"2-digit", minute:"2-digit", second:"2-digit" };
+      const dtf = new Intl.DateTimeFormat(undefined, timeZone ? { ...opts, timeZone } : opts);
+      return dtf.format(new Date());
+    }
+
+    function formatStamp(timeZone) {
+      const d = new Date();
+      const parts = new Intl.DateTimeFormat(undefined, timeZone
+        ? { timeZone, year:"numeric", month:"2-digit", day:"2-digit", hour12:false, hour:"2-digit", minute:"2-digit", second:"2-digit" }
+        : { year:"numeric", month:"2-digit", day:"2-digit", hour12:false, hour:"2-digit", minute:"2-digit", second:"2-digit" }
+      ).formatToParts(d);
+
+      const get = (t) => parts.find(p => p.type === t)?.value || "";
+      return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}:${get("second")}`;
+    }
+
+    // ======= STORAGE =======
+    const LS_KEY = "codelog_v1";
+    function loadState() {
+      try { return JSON.parse(localStorage.getItem(LS_KEY)) || null; } catch { return null; }
+    }
+    function saveState(s) {
+      localStorage.setItem(LS_KEY, JSON.stringify(s));
+    }
+
+    // ======= APP STATE =======
+    const state = loadState() || {
+      zip: "",
+      tz: "",      // "" means device timezone
+      notes: "",
+      events: []   // { item, stamp }
+    };
+
+    // ======= UI ELEMENTS =======
+    const zipEl = document.getElementById("zip");
+    const tzEl = document.getElementById("tz");
+    const buttonsEl = document.getElementById("buttons");
+    const logEl = document.getElementById("log");
+    const notesEl = document.getElementById("notes");
+    const statusEl = document.getElementById("status");
+    const clockEl = document.getElementById("clock");
+    const zipHintEl = document.getElementById("zipHint");
+
+    // ======= RENDER =======
+    function countsByItem() {
+      const map = {};
+      for (const it of ITEMS) map[it] = 0;
+      for (const e of state.events) map[e.item] = (map[e.item] || 0) + 1;
+      return map;
+    }
+
+    function renderButtons() {
+      buttonsEl.innerHTML = "";
+      const counts = countsByItem();
+
+      for (const item of ITEMS) {
+        const btn = document.createElement("button");
+        btn.className = "bigbtn";
+        btn.type = "button";
+        btn.innerHTML = `<span>${item}</span><span class="count">${counts[item] || 0}</span>`;
+        btn.addEventListener("click", () => addEvent(item));
+        buttonsEl.appendChild(btn);
+      }
+    }
+
+    function renderLog() {
+      const lines = state.events.map((e, idx) => `${String(idx+1).padStart(3,"0")}  ${e.stamp}  -  ${e.item}`);
+      const tzLabel = state.tz ? state.tz : "Device timezone";
+      const header = [
+        `Timezone: ${tzLabel}`,
+        state.zip ? `ZIP: ${state.zip}` : `ZIP: (none)`,
+        `Events: ${state.events.length}`,
+        ""
+      ].join("\n");
+
+      const notesBlock = state.notes?.trim()
+        ? `Notes:\n${state.notes.trim()}\n\n`
+        : "";
+
+      logEl.value = header + notesBlock + lines.join("\n");
+      statusEl.textContent = state.events.length
+        ? `Last: ${state.events[state.events.length - 1].item} @ ${state.events[state.events.length - 1].stamp}`
+        : "No events yet.";
+      renderButtons();
+    }
+
+    function tickClock() {
+      clockEl.textContent = formatNow(state.tz || "");
+    }
+
+    // ======= ACTIONS =======
+    function addEvent(item) {
+      const stamp = formatStamp(state.tz || "");
+      state.events.push({ item, stamp });
+      saveState(state);
+      renderLog();
+    }
+
+    function undoLast() {
+      if (!state.events.length) return;
+      state.events.pop();
+      saveState(state);
+      renderLog();
+    }
+
+    function clearAll() {
+      if (!confirm("Clear the entire log?")) return;
+      state.events = [];
+      saveState(state);
+      renderLog();
+    }
+
+    async function copyLog() {
+      await navigator.clipboard.writeText(logEl.value);
+      statusEl.textContent = "Copied log to clipboard.";
+    }
+
+    function downloadLog() {
+      const blob = new Blob([logEl.value], { type: "text/plain;charset=utf-8" });
+      const a = document.createElement("a");
+      const dt = new Date().toISOString().replace(/[:.]/g, "-");
+      a.href = URL.createObjectURL(blob);
+      a.download = `codelog-${dt}.txt`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      statusEl.textContent = "Downloaded log file.";
+    }
+
+    // ======= ZIP -> TZ (best-effort) =======
+    async function applyZip(zip) {
+      const clean = sanitizeZip(zip);
+      if (!clean) {
+        state.zip = "";
+        saveState(state);
+        zipHintEl.textContent = "Enter a ZIP to auto-pick a best-guess timezone (you can still override it).";
+        renderLog();
+        return;
+      }
+
+      try {
+        const data = await lookupZip(clean);
+        const place = data.places && data.places[0];
+        const stateAbbr = place ? place["state abbreviation"] : "";
+        const guessTz = STATE_TO_TZ[stateAbbr] || "";
+
+        state.zip = clean;
+
+        // Only auto-set tz if user hasn't explicitly chosen one yet
+        if (!state.tz && guessTz) {
+          state.tz = guessTz;
+          tzEl.value = guessTz;
+        }
+
+        saveState(state);
+
+        const city = place ? place["place name"] : "";
+        zipHintEl.textContent =
+          `ZIP ${clean} → ${city ? city + ", " : ""}${stateAbbr || ""}. ` +
+          (guessTz ? `Best-guess timezone set to ${guessTz}.` : `Could not guess timezone; choose from dropdown.`) +
+          ` (Override if your area is in a different zone.)`;
+
+        renderLog();
+      } catch (err) {
+        zipHintEl.textContent = "Could not look up that ZIP. Please check it (5 digits).";
+      }
+    }
+
+    // ======= INIT =======
+    function init() {
+      zipEl.value = state.zip || "";
+      tzEl.value = state.tz || "";
+      notesEl.value = state.notes || "";
+
+      renderButtons();
+      renderLog();
+      tickClock();
+      setInterval(tickClock, 250);
+
+      // Events
+      zipEl.addEventListener("change", () => applyZip(zipEl.value));
+      zipEl.addEventListener("blur", () => applyZip(zipEl.value));
+
+      tzEl.addEventListener("change", () => {
+        state.tz = tzEl.value; // "" = device timezone
+        saveState(state);
+        renderLog();
+      });
+
+      notesEl.addEventListener("input", () => {
+        state.notes = notesEl.value;
+        saveState(state);
+      });
+
+      document.getElementById("undo").addEventListener("click", undoLast);
+      document.getElementById("clear").addEventListener("click", clearAll);
+      document.getElementById("copy").addEventListener("click", copyLog);
+      document.getElementById("download").addEventListener("click", downloadLog);
+    }
+
+    init();
+  </script>
+</body>
+</html>
