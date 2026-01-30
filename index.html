@@ -305,10 +305,13 @@
     }
 
     function clearAll() {
-      if (!confirm("Clear the entire log?")) return;
-      state.events = [];
-      saveState(state);
-      renderLog();
+  state.events = [];
+  state.notes = "";
+  notesEl.value = "";
+  saveState(state);
+  renderLog();
+  statusEl.textContent = "Cleared all events and notes.";
+}
     }
 
     async function copyLog() {
