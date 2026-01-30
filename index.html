@@ -305,11 +305,17 @@
     }
 
     function clearAll() {
+  // Clear events + notes
   state.events = [];
   state.notes = "";
+
+  // Clear the Notes textbox UI (so it updates immediately)
   notesEl.value = "";
+
+  // Save + redraw
   saveState(state);
   renderLog();
+
   statusEl.textContent = "Cleared all events and notes.";
 }
     }
